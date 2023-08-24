@@ -2,12 +2,12 @@
   "name": "repo-gpt",
   "displayName": "repo-gpt",
   "description": "",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "shruti222patel",
   "icon": "images/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/shruti222patel/repo-gpt.git"
+    "url": "https://github.com/shruti222patel/repo-gpt-vscode-ext.git"
   },
   "license": "MIT",
   "engines": {
