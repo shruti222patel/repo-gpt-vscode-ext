@@ -154,14 +154,14 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
                 break;
             case 'python':
                 this.regex = /def (\w+)\(/g;
-                this.bodyRegex = /def \w+\s?\([^)]*\):\s*([\s\S]*?)(?=^\w|$)/gm;
+                this.bodyRegex = /def \w+\s?\([^)]*\):\s*^(\s*)([\s\S]*?)(?=^\1(?!\s)|^\s*$)/gm;
                 break;
-			default:
-				this.regex = null;
-				this.bodyRegex = null;
+            default:
+                this.regex = null;
+                this.bodyRegex = null;
         }
     }
-
+    
     provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
         let matches, bodyMatches;
         const codeLenses: vscode.CodeLens[] = [];
