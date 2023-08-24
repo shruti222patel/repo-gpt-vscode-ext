@@ -71,7 +71,7 @@ export function activate(context: vscode.ExtensionContext) {
         ));
     }
 
-    context.subscriptions.push(vscode.commands.registerCommand('extension.explain', (functionBody:string, functionName: string, language: string) => {
+    context.subscriptions.push(vscode.commands.registerCommand('repogpt.explain', (functionBody:string, functionName: string, language: string) => {
         // Write the function content to a temp file
         const tempFilePath = path.join(os.tmpdir(), 'function_content.txt');
         fs.writeFileSync(tempFilePath, functionBody); // or whatever content you need
@@ -84,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
         // Create a webview panel to stream Python script output
         const panel = vscode.window.createWebviewPanel(
             'pythonScriptOutput',      // Identifies the type of the webview
-            'Repo GPT',   // Title of the panel displayed to the user
+            `Explain - ${functionName}`,   // Title of the panel displayed to the user
             vscode.ViewColumn.Beside,    // Determines the column to show the new webview
             { enableScripts: true }   // Enables JavaScript in the webview
         );
@@ -184,7 +184,7 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
             }
             const command: vscode.Command = {
                 title: "Explain",
-                command: "extension.explain",
+                command: "repogpt.explain",
                 arguments: [functionBody , functionName, this.language]
             };
             codeLenses.push(new vscode.CodeLens(line.range, command));

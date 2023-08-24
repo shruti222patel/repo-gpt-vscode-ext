@@ -37,7 +37,7 @@
     }],
     "commands": [
         {
-            "command": "extension.explain",
+            "command": "repogpt.explain",
             "title": "Explain"
         }],
     "configuration": {
