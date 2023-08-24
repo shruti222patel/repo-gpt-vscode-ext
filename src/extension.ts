@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
 	console.log('Congratulations, your extension "repo-gpt" is now active!');
 
 	// Check if API key is set
-	let apiKey = vscode.workspace.getConfiguration().get('openai.apiKey');
+	let apiKey = vscode.workspace.getConfiguration('repogpt').get<string>('openaiApiKey');
 	if (!apiKey) {
 		// Prompt the user to enter the API key if it's not set
 		vscode.window.showInputBox({

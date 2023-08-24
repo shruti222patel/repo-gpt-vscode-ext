@@ -2,7 +2,7 @@
   "name": "repo-gpt",
   "displayName": "repo-gpt",
   "description": "",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "shruti222patel",
   "icon": "images/icon.png",
   "repository": {
@@ -39,7 +39,17 @@
         {
             "command": "extension.explain",
             "title": "Explain"
-        }]
+        }],
+    "configuration": {
+      "title": "Repo GPT",
+      "properties": {
+        "repogpt.openaiApiKey": {
+          "type": "string",
+          "default": null,
+          "description": "The OpenAI API key to use for requests."
+        }
+      }
+    }
 },
   "main": "./dist/extension.js",
   "scripts": {

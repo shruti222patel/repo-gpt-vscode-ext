@@ -17,7 +17,9 @@ Understand functions using the help of GPT with one click.
 
 ## Extension Settings
 
-* `openai.apiKey`: set the value as your openai api secret. 
+* `repogpt.openaiApiKey`: set the value as your openai api secret. 
+
+![how to add openai key](./images/add_openai_key.gif)
 
 ## Known Issues
 
