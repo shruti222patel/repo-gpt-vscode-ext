@@ -2,7 +2,9 @@
   "name": "repo-gpt",
   "displayName": "repo-gpt",
   "description": "",
-  "version": "0.0.1",
+  "version": "0.0.5",
+  "publisher": "shruti222patel",
+  "icon": "images/icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/shruti222patel/repo-gpt.git"
