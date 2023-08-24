@@ -3,6 +3,11 @@
   "displayName": "repo-gpt",
   "description": "",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shruti222patel/repo-gpt.git"
+  },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.77.0"
   },
@@ -30,13 +35,9 @@
     }],
     "commands": [
         {
-            "command": "extension.runFunction",
-            "title": "Run function"
-        },
-        {
-          "command": "extension.helloWorld",
-          "title": "helloWorld"
-    }]
+            "command": "extension.explain",
+            "title": "Explain"
+        }]
 },
   "main": "./dist/extension.js",
   "scripts": {

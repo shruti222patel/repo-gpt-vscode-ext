@@ -3,12 +3,15 @@
 import * as vscode from 'vscode';
 const fs = require('fs');
 const { execSync } = require('child_process');
+const os = require('os');
 const path = require('path');
+
+import { spawn } from 'child_process';
 
 function setupPythonEnv(context: vscode.ExtensionContext) {
     const extensionDir = context.extensionPath;
     const venvDir = path.join(extensionDir, 'venv');
-    const wheelPath = path.join(extensionDir, 'repo_gpt-0.1.2-py3-none-any.whl');
+    const wheelPath = path.join(extensionDir, 'repo_gpt-0.1.5-py3-none-any.whl');
     const lastWheelPath = path.join(extensionDir, 'last_wheel.txt');
 
     // If last_wheel.txt doesn't exist or contains a different wheel filename, recreate venv
@@ -51,6 +54,7 @@ export function activate(context: vscode.ExtensionContext) {
 			if (value) {
 				// Save the provided API key to the configuration
 				vscode.workspace.getConfiguration().update('openai.apiKey', value, vscode.ConfigurationTarget.Global);
+                apiKey = value;
 			}
 		});
 	}
@@ -67,36 +71,70 @@ export function activate(context: vscode.ExtensionContext) {
         ));
     }
 
-    context.subscriptions.push(vscode.commands.registerCommand('extension.runFunction', (functionName: string) => {
-        vscode.window.showInformationMessage(`You triggered ${functionName}`);
+    context.subscriptions.push(vscode.commands.registerCommand('extension.explain', (functionBody:string, functionName: string, language: string) => {
+        // Write the function content to a temp file
+        const tempFilePath = path.join(os.tmpdir(), 'function_content.txt');
+        fs.writeFileSync(tempFilePath, functionBody); // or whatever content you need
 
-        console.log(`Running function ${functionName}`);
+        const extensionDir = context.extensionPath;
+        const pythonScriptPath = path.join(extensionDir, 'test_python_script.py');
 
-        const language = "javascript";
-        const code = functionName;
-        const command = `${pythonInterpreter} explain --language ${language} --code ${code}`;
-        try {
-            // Capture the command's output.
-            const output = execSync(command, { encoding: 'utf8' });
-    
-            // Display the command's output.
-            vscode.window.showInformationMessage(`Output: ${output}`);
-        } catch (error: any) {
-            // If there's an error during command execution, display the error message.
-            vscode.window.showErrorMessage(`Error: ${error.message}`);
-        }
+        // Construct the command
+        const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, tempFilePath]);
+        // Create a webview panel to stream Python script output
+        const panel = vscode.window.createWebviewPanel(
+            'pythonScriptOutput',      // Identifies the type of the webview
+            'Repo GPT',   // Title of the panel displayed to the user
+            vscode.ViewColumn.Beside,    // Determines the column to show the new webview
+            { enableScripts: true }   // Enables JavaScript in the webview
+        );
+
+        // After creating the webview panel, move it to the last editor group (usually the bottom panel)
+        vscode.commands.executeCommand('workbench.action.moveEditorToLastGroup');
+
+
+        // Initial HTML structure with a script to handle messages from the extension
+        panel.webview.html = `
+        <html>
+            <head>
+                <style>
+                    pre {
+                        white-space: pre-wrap;  /* Allow text to wrap */
+                    }
+                </style>
+            </head>
+            <body>
+                <pre id="output"></pre>
+                <script>
+                    const outputPre = document.getElementById('output');
+                    window.addEventListener('message', event => {
+                        const message = event.data;
+                        switch (message.type) {
+                            case 'append':
+                                if (message.isError) {
+                                    outputPre.style.color = 'red';
+                                }
+                                outputPre.textContent += message.data;
+                                break;
+                        }
+                    });
+                </script>
+            </body>
+        </html>
+        `;
+
+        pythonProcess.stdout.on('data', (data) => {
+            panel.webview.postMessage({ type: 'append', data: data.toString(), isError: false });
+        });
+
+        pythonProcess.stderr.on('data', (data) => {
+            panel.webview.postMessage({ type: 'append', data: data.toString(), isError: true });
+        });
+
+        pythonProcess.on('close', (code) => {
+            panel.webview.postMessage({ type: 'append', data: `Python script exited with code ${code}`, isError: false });
+        });
     }));
-
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('extension.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from repo-gpt!');
-	});
-
-	context.subscriptions.push(disposable);
 }
 
 class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
@@ -104,6 +142,7 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
     private bodyRegex: RegExp | null;
 
     constructor(private language: string) {
+        this.language = language;
         switch (language) {
             case 'typescript':
                 this.regex = /function (\w+)\(/g;
@@ -124,7 +163,7 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
     }
 
     provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
-        let matches;
+        let matches, bodyMatches;
         const codeLenses: vscode.CodeLens[] = [];
 
 		if (this.regex === null || this.bodyRegex === null) {
@@ -134,10 +173,19 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
         while (matches = this.regex.exec(document.getText())) {
             const functionName = matches[1];
             const line = document.lineAt(document.positionAt(matches.index).line);
+
+            // Extract function body
+            let functionBody = '';
+            while (bodyMatches = this.bodyRegex.exec(document.getText())) {
+                if (bodyMatches[1]) {  // Body is usually in the first capture group
+                    functionBody = bodyMatches[1];
+                    break;  // Exit once the body is found
+                }
+            }
             const command: vscode.Command = {
-                title: "Run function",
-                command: "extension.runFunction",
-                arguments: [document.getText(), functionName, this.bodyRegex]
+                title: "Explain",
+                command: "extension.explain",
+                arguments: [functionBody , functionName, this.language]
             };
             codeLenses.push(new vscode.CodeLens(line.range, command));
         }
