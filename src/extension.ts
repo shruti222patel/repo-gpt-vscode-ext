@@ -80,7 +80,7 @@ export function activate(context: vscode.ExtensionContext) {
         fs.writeFileSync(tempFilePath, functionBody); // or whatever content you need
 
         const extensionDir = context.extensionPath;
-        const pythonScriptPath = path.join(extensionDir, 'test_python_script.py');
+        const pythonScriptPath = path.join(extensionDir, 'src', 'python_scripts', 'explain_code.py');
 
         // Construct the command
         const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, tempFilePath]);
@@ -172,7 +172,7 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
         const pythonInterpreter = setupPythonEnv(this.context);
 
         const extensionDir = this.context.extensionPath;
-        const pythonScriptPath = path.join(extensionDir, 'generate_codelens.py');
+        const pythonScriptPath = path.join(extensionDir, 'src', 'python_scripts', 'generate_codelens.py');
 
         // Install the wheel package into the virtual environment
         const codelensStr = execSync(`${pythonInterpreter} ${pythonScriptPath} ${apiKey} ${this.language} ${filepath}`).toString();
