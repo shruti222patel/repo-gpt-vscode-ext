@@ -23,7 +23,7 @@ Understand functions using the help of GPT with one click.
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+* Switching tabs after pressing explain will cause the explaination to disappear
 
 ## Release Notes
 

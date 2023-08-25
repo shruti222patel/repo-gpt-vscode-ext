@@ -6,3 +6,8 @@ node_modules
 test_py_command.sh
 
 venv-test/
+.env
+
+# From debugging
+venv/
+last_wheel.txt
