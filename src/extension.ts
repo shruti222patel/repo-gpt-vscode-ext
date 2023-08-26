@@ -5,11 +5,12 @@ const os = require('os');
 const path = require('path');
 
 import { spawn } from 'child_process';
+import { create } from 'domain';
 
 function setupPythonEnv(context: vscode.ExtensionContext) {
     const extensionDir = context.extensionPath;
     const venvDir = path.join(extensionDir, 'venv');
-    const wheelPath = path.join(extensionDir, 'repo_gpt-0.1.5-py3-none-any.whl');
+    const wheelPath = path.join(extensionDir, 'repo_gpt-0.1.6-py3-none-any.whl');
     const lastWheelPath = path.join(extensionDir, 'last_wheel.txt');
 
     // If last_wheel.txt doesn't exist or contains a different wheel filename, recreate venv
@@ -73,6 +74,47 @@ export function activate(context: vscode.ExtensionContext) {
     // Create a map to store the state for each function
     const functionStates: { [key: string]: string } = {};
 
+    context.subscriptions.push(vscode.commands.registerCommand('repogpt.createTest', async (functionBody: string, originalFilePath: string, language: string) => {
+    
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Generating tests...",
+            cancellable: false // Change this to true if you want to handle cancellation
+        }, async (progress) => {
+            // Write the function content to a temp file
+            const tempFilePath = path.join(os.tmpdir(), 'function_content.txt');
+            fs.writeFileSync(tempFilePath, functionBody); // or whatever content you need
+        
+            const extensionDir = context.extensionPath;
+            const pythonScriptPath = path.join(extensionDir, 'python_scripts', 'create_tests.py');
+            const testFramework = "";
+    
+            // Set the output file to be in the same directory as the original file
+            const outputFileName = 'demo_generated_tests.py';
+            const outputFilePath = path.join(path.dirname(originalFilePath), outputFileName);
+    
+            // Construct the command
+            const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, testFramework, tempFilePath, outputFilePath]);
+        
+            // If you want to report progress from the pythonProcess (optional), 
+            // you could listen to its stdout/stderr and call progress.report as needed.
+        
+            // Example:
+            pythonProcess.stdout.on('data', (data) => {
+                // Parse data for progress updates and report them
+                // progress.report({ increment: 10, message: `Processed ${data}` });
+            });
+                
+            // Handle process completion
+            return new Promise((resolve, reject) => {
+                pythonProcess.on('close', resolve);
+                pythonProcess.on('error', reject);
+            });
+        });
+    
+        vscode.window.showInformationMessage('Finished generating tests!');
+    }));
+    
 
     context.subscriptions.push(vscode.commands.registerCommand('repogpt.explain', (functionBody:string, functionName: string, language: string) => {
         // Write the function content to a temp file
@@ -80,7 +122,7 @@ export function activate(context: vscode.ExtensionContext) {
         fs.writeFileSync(tempFilePath, functionBody); // or whatever content you need
 
         const extensionDir = context.extensionPath;
-        const pythonScriptPath = path.join(extensionDir, 'src', 'python_scripts', 'explain_code.py');
+        const pythonScriptPath = path.join(extensionDir, 'python_scripts', 'explain_code.py');
 
         // Construct the command
         const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, tempFilePath]);
@@ -105,18 +147,76 @@ export function activate(context: vscode.ExtensionContext) {
         // Get the saved state for the function if available
         let savedOutput = functionStates[functionKey] || '';
 
+        // Get the editor.fontFamily setting
+        let editorFont = vscode.workspace.getConfiguration('editor').get('fontFamily');
+
         // Initial HTML structure with a script to handle messages from the extension
         let initialHtml = `
         <html>
             <head>
                 <style>
-                    pre {
-                        white-space: pre-wrap;
-                    }
+                body {
+                    font-family: "${editorFont}", monospace;
+                    padding: 16px;
+                    line-height: 1.6;
+                    white-space: pre-wrap;
+                }
+                h1, h2, h3, h4, h5, h6 {
+                    margin-top: 24px;
+                    margin-bottom: 16px;
+                }
+                h1 {
+                    font-size: 2em;
+                }
+                h2 {
+                    font-size: 1.5em;
+                }
+                h3 {
+                    font-size: 1.25em;
+                }
+                h4 {
+                    font-size: 1em;
+                }
+                h5 {
+                    font-size: 0.875em;
+                }
+                h6 {
+                    font-size: 0.85em;
+                    color: #777;
+                }
+                a {
+                    color: #0366d6;
+                    text-decoration: none;
+                }
+                a:hover {
+                    text-decoration: underline;
+                }
+                blockquote {
+                    color: #777;
+                    border-left: 4px solid #ddd;
+                    padding-left: 10px;
+                    margin-left: 0;
+                }
+                ul, ol {
+                    margin-top: 0;
+                    margin-bottom: 16px;
+                    padding-left: 40px;
+                }
+                code {
+                    padding: 2px 5px;
+                    background-color: #f2f2f2;
+                    border-radius: 3px;
+                }
+                pre {
+                    background-color: #f2f2f2;
+                    padding: 10px;
+                    border-radius: 3px;
+                    white-space: pre-wrap;
+                }
                 </style>
             </head>
             <body>
-                <pre id="output">${savedOutput}</pre>
+                <div id="output">${savedOutput}</div>
                 <script>
                     const outputPre = document.getElementById('output');
                     window.addEventListener('message', event => {
@@ -172,7 +272,7 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
         const pythonInterpreter = setupPythonEnv(this.context);
 
         const extensionDir = this.context.extensionPath;
-        const pythonScriptPath = path.join(extensionDir, 'src', 'python_scripts', 'generate_codelens.py');
+        const pythonScriptPath = path.join(extensionDir, 'python_scripts', 'generate_codelens.py');
 
         // Install the wheel package into the virtual environment
         const codelensStr = execSync(`${pythonInterpreter} ${pythonScriptPath} ${apiKey} ${this.language} ${filepath}`).toString();
@@ -187,12 +287,21 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
             const codelensArr: ParsedCodeLens[] = JSON.parse(codelensStr);
             for (const code of codelensArr) {
                 const line = document.lineAt(code.start_line);
-                const command: vscode.Command = {
+                const explainCommand: vscode.Command = {
                     title: "Explain",
                     command: "repogpt.explain",
                     arguments: [code.code , code.name, this.language]
                 };
-                codeLenses.push(new vscode.CodeLens(line.range, command));
+                codeLenses.push(new vscode.CodeLens(line.range, explainCommand));
+
+                if (this.language !== 'sql') {
+                    const createTestCommand: vscode.Command = {
+                        title: "Create Test",
+                        command: "repogpt.createTest",
+                        arguments: [code.code , filepath, this.language]
+                    };
+                    codeLenses.push(new vscode.CodeLens(line.range, createTestCommand));
+                }
             }
         } catch (error) {
             console.error("Error parsing the string into JSON:", error);
@@ -202,4 +311,24 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+    try {
+        const extensionDir = vscode.extensions.getExtension('shruti222patel.repo-gpt')?.extensionPath;
+        if (extensionDir) {
+            const venvDir = path.join(extensionDir, 'venv');
+            const lastWheelPath = path.join(extensionDir, 'last_wheel.txt');
+
+            // Remove venv directory if it exists
+            if (fs.existsSync(venvDir)) {
+                fs.rmdirSync(venvDir, { recursive: true });
+            }
+
+            // Remove last_wheel.txt if it exists
+            if (fs.existsSync(lastWheelPath)) {
+                fs.unlinkSync(lastWheelPath);
+            }
+        }
+    } catch (error) {
+        console.error("Error during deactivation:", error);
+    }
+}

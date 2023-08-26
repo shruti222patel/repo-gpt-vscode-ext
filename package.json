@@ -2,7 +2,7 @@
   "name": "repo-gpt",
   "displayName": "repo-gpt",
   "description": "",
-  "version": "0.0.10",
+  "version": "0.0.13",
   "publisher": "shruti222patel",
   "icon": "images/icon.png",
   "repository": {
@@ -11,7 +11,8 @@
   },
   "license": "MIT",
   "engines": {
-    "vscode": "^1.77.0"
+    "vscode": "^1.77.0",
+    "os": ["darwin", "linux"]
   },
   "categories": [
     "Other"
@@ -43,7 +44,11 @@
         {
             "command": "repogpt.explain",
             "title": "Explain"
-        }],
+        },
+        {
+          "command": "repogpt.createTest",
+          "title": "Create Test"
+      }],
     "configuration": {
       "title": "Repo GPT",
       "properties": {

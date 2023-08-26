@@ -12,6 +12,9 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 
-
+.env
 venv-test/**
 dev_contrib.md
+venv/**
+last_wheel.txt
+test_code_files

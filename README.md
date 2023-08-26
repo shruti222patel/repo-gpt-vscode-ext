@@ -14,6 +14,7 @@ Understand functions using the help of GPT with one click.
   * python
   * typescript
   * php
+  * sql
 
 ## Extension Settings
 
