@@ -11,13 +11,13 @@
   },
   "license": "MIT",
   "engines": {
-    "vscode": "^1.77.0",
-    "os": ["darwin", "linux"]
+    "vscode": "^1.77.0"
   },
   "categories": [
     "Other"
   ],
 "activationEvents": [
+    "onView:repogpt.view",
     "onLanguage:typescript",
     "onLanguage:php",
     "onLanguage:python"
@@ -58,6 +58,24 @@
           "description": "The OpenAI API key to use for requests."
         }
       }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "repogpt",
+          "title": "RepoGPT",
+          "icon": "images/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "repogpt": [
+        {
+          "type": "webview",
+          "id": "repogpt.view",
+          "name": "ChatGPT"
+        }
+      ]
     }
 },
   "main": "./dist/extension.js",
