@@ -18,21 +18,47 @@ function setupPythonEnv(context: vscode.ExtensionContext) {
     const lastWheelPath = path.join(extensionDir, 'last_wheel.txt');
     const pythonInterpreter = path.join(venvDir, 'bin', 'python');
 
-    // If last_wheel.txt doesn't exist or contains a different wheel filename, recreate venv
-    if (!pythonInterpreter || !fs.existsSync(lastWheelPath) || fs.readFileSync(lastWheelPath, 'utf8') !== path.basename(wheelPath)) {
+    // Check the existence of the python interpreter
+    if (!fs.existsSync(pythonInterpreter) || 
+        !fs.existsSync(lastWheelPath) || 
+        fs.readFileSync(lastWheelPath, 'utf8') !== path.basename(wheelPath)) {
+
         // Remove existing venv directory if it exists
         if (fs.existsSync(venvDir)) {
-            fs.rmdirSync(venvDir, { recursive: true });
+            console.log(`Removing existing virtual environment at: ${venvDir}`);
+            fs.rmSync(venvDir, { recursive: true });
         }
 
         // Create a new virtual environment
-        execSync(`python3 -m venv ${venvDir}`);
+        try {
+            console.log(`Creating virtual environment at: ${venvDir}`);
+            execSync(`python3 -m venv ${venvDir}`);
+            console.log(`Virtual environment created.`);
+        } catch (error) {
+            console.error(`Error creating virtual environment: ${error}`);
+            return null; // Return null to indicate failure
+        }
 
         // Install the wheel package into the virtual environment
-        execSync(`${path.join(venvDir, 'bin', 'pip')} install ${wheelPath}`);
+        try {
+            console.log(`Installing wheel package from: ${wheelPath}`);
+            execSync(`${path.join(venvDir, 'bin', 'pip')} install ${wheelPath}`);
+            console.log(`Wheel package installed.`);
+        } catch (error) {
+            console.error(`Error installing wheel package: ${error}`);
+            return null; // Return null to indicate failure
+        }
 
         // Store the current wheel filename
         fs.writeFileSync(lastWheelPath, path.basename(wheelPath));
+    }
+
+    // Check the existence of python interpreter after setup
+    if (fs.existsSync(pythonInterpreter)) {
+        console.log(`Python interpreter exists at: ${pythonInterpreter}`);
+    } else {
+        console.log(`Python interpreter NOT found at: ${pythonInterpreter}`);
+        return null; // Return null to indicate failure
     }
 
     return pythonInterpreter;
@@ -108,6 +134,9 @@ export function activate(context: vscode.ExtensionContext) {
         
             // If you want to report progress from the pythonProcess (optional), 
             // you could listen to its stdout/stderr and call progress.report as needed.
+            
+            // Clear previous text
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: 'Generating tests...this will take some time', isError: false, inProgress: true }));
         
             // Example:
             pythonProcess.stdout.on('data', (data) => {
@@ -123,6 +152,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
     
         vscode.window.showInformationMessage('Finished generating tests!');
+        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: 'Tests have been generated.', isError: false }));
     }));
     
 
@@ -137,22 +167,74 @@ export function activate(context: vscode.ExtensionContext) {
         // Construct the command
         const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, tempFilePath]);
 
-        // Create new response html
-        chatViewProvider.sendMessageToWebView({ type: 'addResponse', value: `Explaination of: ${functionName}` });
+        // Create new response html after clearing previous text
+        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear',language: language, value: "", isError: false }));
+        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Explaination of: ${functionName}`, isError: false, inProgress: true }));
 
         pythonProcess.stdout.on('data', (data) => {
-            chatViewProvider.sendMessageToWebView({ type: 'append', value: data.toString(), isError: false });
+            console.log("Response data as read from terminal process", data.toString());
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), isError: false, inProgress: true  }));
         });
 
         pythonProcess.stderr.on('data', (data) => {
-            // console.error(data.toString());
-            chatViewProvider.sendMessageToWebView({ type: 'append', value: data.toString(), isError: true });
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), isError: true, inProgress: true  }));
         });
 
-        // pythonProcess.on('close', (code) => {
-        //     chatViewProvider.sendMessageToWebView({ type: 'append', value: `Python script exited with code ${code}`, isError: false });
-        // });
+        pythonProcess.on('close', (code) => {
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'appendDone',language: language, value: "", isError: false }));
+        });
     }));
+
+    context.subscriptions.push(vscode.commands.registerCommand('repogpt.refactor', (functionBody:string, functionName: string, language: string) => {
+        // Write the function content to a temp file
+        const tempFilePath = path.join(os.tmpdir(), 'function_content.txt');
+        fs.writeFileSync(tempFilePath, functionBody); // or whatever content you need
+
+        const extensionDir = context.extensionPath;
+        const pythonScriptPath = path.join(extensionDir, 'python_scripts', 'refactor_code.py');
+
+        // Construct the command
+        const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, tempFilePath]);
+
+        // Create new response html after clearing previous text
+        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear',language: language, value: "", isError: false }));
+        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Refactor: ${functionName}`, isError: false, inProgress: true }));
+
+        pythonProcess.stdout.on('data', (data) => {
+            console.log("Response data as read from terminal process", data.toString());
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), isError: false, inProgress: true  }));
+        });
+
+        pythonProcess.stderr.on('data', (data) => {
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), isError: true, inProgress: true }));
+        });
+
+        pythonProcess.on('close', (code) => {
+            // TODO: update to add a copy and paste button
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'appendDone',language: language, value: "", isError: false }));
+        });
+    }));
+}
+
+
+interface WebViewMessage {
+    type: string;
+    value: string;
+    isError?: boolean;
+    language?: string;
+    inProgress?: boolean;  // The "?" makes it optional
+}
+function createWebViewMessage(message: Partial<WebViewMessage>): WebViewMessage {
+    // Set default values
+    const defaults: WebViewMessage = {
+        type: '',
+        value: '',
+        language: 'javascript',
+        isError: false,
+        inProgress: false,
+    };
+
+    return { ...defaults, ...message };
 }
 
 class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
@@ -180,18 +262,27 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
             name: string;
             code: string;
             start_line: number;
+            end_line: number;
         };
 
         try {
             const codelensArr: ParsedCodeLens[] = JSON.parse(codelensStr);
             for (const code of codelensArr) {
-                const line = document.lineAt(code.start_line);
+                // const line = document.lineAt(code.start_line);
+                const range = new vscode.Range(code.start_line, 0, code.end_line+1, 0);
                 const explainCommand: vscode.Command = {
                     title: "Explain",
                     command: "repogpt.explain",
                     arguments: [code.code , code.name, this.language]
                 };
-                codeLenses.push(new vscode.CodeLens(line.range, explainCommand));
+                codeLenses.push(new vscode.CodeLens(range, explainCommand));
+
+                const refactorCommand: vscode.Command = {
+                    title: "Refactor",
+                    command: "repogpt.refactor",
+                    arguments: [code.code , code.name, this.language]
+                };
+                codeLenses.push(new vscode.CodeLens(range, refactorCommand));
 
                 if (this.language !== 'sql') {
                     const createTestCommand: vscode.Command = {
@@ -199,7 +290,7 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
                         command: "repogpt.createTest",
                         arguments: [code.code , filepath, this.language]
                     };
-                    codeLenses.push(new vscode.CodeLens(line.range, createTestCommand));
+                    codeLenses.push(new vscode.CodeLens(range, createTestCommand));
                 }
             }
         } catch (error) {
@@ -219,7 +310,7 @@ export function deactivate() {
 
             // Remove venv directory if it exists
             if (fs.existsSync(venvDir)) {
-                fs.rmdirSync(venvDir, { recursive: true });
+                fs.rmSync(venvDir, { recursive: true });
             }
 
             // Remove last_wheel.txt if it exists
