@@ -111,7 +111,8 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     context.subscriptions.push(vscode.commands.registerCommand('repogpt.createTest', async (functionBody: string, originalFilePath: string, language: string) => {
-    
+        const outputFileName = 'demo_generated_tests.txt';
+        const outputFilePath = path.join(path.dirname(originalFilePath), outputFileName);
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
             title: "Generating tests...",
@@ -126,8 +127,6 @@ export function activate(context: vscode.ExtensionContext) {
             const testFramework = "";
     
             // Set the output file to be in the same directory as the original file
-            const outputFileName = 'demo_generated_tests.py';
-            const outputFilePath = path.join(path.dirname(originalFilePath), outputFileName);
     
             // Construct the command
             const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, testFramework, tempFilePath, outputFilePath]);
@@ -136,14 +135,9 @@ export function activate(context: vscode.ExtensionContext) {
             // you could listen to its stdout/stderr and call progress.report as needed.
             
             // Clear previous text
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: 'Generating tests...this will take some time', isError: false, inProgress: true }));
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear',language: language, value: "" }));
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: 'Generating tests...this will take some time', inProgress: true }));
         
-            // Example:
-            pythonProcess.stdout.on('data', (data) => {
-                // Parse data for progress updates and report them
-                // progress.report({ increment: 10, message: `Processed ${data}` });
-            });
-                
             // Handle process completion
             return new Promise((resolve, reject) => {
                 pythonProcess.on('close', resolve);
@@ -152,7 +146,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
     
         vscode.window.showInformationMessage('Finished generating tests!');
-        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: 'Tests have been generated.', isError: false }));
+        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Tests have been generated at ${outputFilePath}` }));
     }));
     
 
@@ -168,12 +162,12 @@ export function activate(context: vscode.ExtensionContext) {
         const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, tempFilePath]);
 
         // Create new response html after clearing previous text
-        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear',language: language, value: "", isError: false }));
-        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Explaination of: ${functionName}`, isError: false, inProgress: true }));
+        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear',language: language, value: "" }));
+        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Explaination of: ${functionName}`, inProgress: true }));
 
         pythonProcess.stdout.on('data', (data) => {
             console.log("Response data as read from terminal process", data.toString());
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), isError: false, inProgress: true  }));
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), inProgress: true  }));
         });
 
         pythonProcess.stderr.on('data', (data) => {
@@ -181,7 +175,7 @@ export function activate(context: vscode.ExtensionContext) {
         });
 
         pythonProcess.on('close', (code) => {
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'appendDone',language: language, value: "", isError: false }));
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'appendDone',language: language, value: "" }));
         });
     }));
 
@@ -197,12 +191,12 @@ export function activate(context: vscode.ExtensionContext) {
         const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, tempFilePath]);
 
         // Create new response html after clearing previous text
-        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear',language: language, value: "", isError: false }));
-        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Refactor: ${functionName}`, isError: false, inProgress: true }));
+        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear',language: language, value: "" }));
+        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Refactor: ${functionName}`, inProgress: true }));
 
         pythonProcess.stdout.on('data', (data) => {
             console.log("Response data as read from terminal process", data.toString());
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), isError: false, inProgress: true  }));
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), inProgress: true  }));
         });
 
         pythonProcess.stderr.on('data', (data) => {
@@ -211,7 +205,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         pythonProcess.on('close', (code) => {
             // TODO: update to add a copy and paste button
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'appendDone',language: language, value: "", isError: false }));
+            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'appendDone',language: language, value: "" }));
         });
     }));
 }
