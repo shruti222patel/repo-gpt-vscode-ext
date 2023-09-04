@@ -1,14 +1,12 @@
 import * as vscode from 'vscode';
+import { spawn } from 'child_process';
+import ChatGptViewProvider from './chatgpt-view-provider';
+
 const fs = require('fs');
 const { execSync } = require('child_process');
 const os = require('os');
 const path = require('path');
 
-import { spawn } from 'child_process';
-import { create } from 'domain';
-
-
-import ChatGptViewProvider from './chatgpt-view-provider';
 
 
 function setupPythonEnv(context: vscode.ExtensionContext) {
@@ -69,12 +67,8 @@ function setupPythonEnv(context: vscode.ExtensionContext) {
 // Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "repo-gpt" is now active!');
-
 	// Check if API key is set
-	let apiKey = vscode.workspace.getConfiguration('repogpt').get('openaiApiKey');
+	let apiKey: string | undefined = vscode.workspace.getConfiguration('repogpt').get('openaiApiKey');
 	if (!apiKey) {
 		// Prompt the user to enter the API key if it's not set
 		vscode.window.showInputBox({
@@ -89,6 +83,10 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		});
 	}
+    if (!apiKey) {
+        vscode.window.showErrorMessage('Please set your OpenAI API Key in the settings');
+        return;
+    }
 
     const pythonInterpreter = setupPythonEnv(context);
 
@@ -99,16 +97,33 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.window.registerWebviewViewProvider("repogpt.view", chatViewProvider, {
         webviewOptions: { retainContextWhenHidden: true }
     }));
-    console.log("registered webview view provider");
+    // console.log("registered webview view provider");
 
 	// Register FunctionRunCodeLensProvider for all languages
 	const languages = ['typescript', 'php', 'python', 'sql'];
+    const codeLensProviders: FunctionRunCodeLensProvider[] = [];
+
     for (const lang of languages) {
+        const provider = new FunctionRunCodeLensProvider(lang, context);
+        codeLensProviders.push(provider);
+        
         context.subscriptions.push(vscode.languages.registerCodeLensProvider(
             { scheme: 'file', language: lang },
-            new FunctionRunCodeLensProvider(lang, context)
+            provider
         ));
     }
+
+    context.subscriptions.push(vscode.workspace.onDidChangeTextDocument((e) => {
+        if (e.document === vscode.window.activeTextEditor?.document) {
+            const docLanguage = e.document.languageId;
+            for (const provider of codeLensProviders) {
+                if (provider.language === docLanguage) {
+                    provider.refresh();  // Refresh only the relevant codelens for the updated document's language
+                    break;
+                }
+            }
+        }
+    }));
 
     context.subscriptions.push(vscode.commands.registerCommand('repogpt.createTest', async (functionBody: string, originalFilePath: string, language: string) => {
         const outputFileName = 'demo_generated_tests.txt';
@@ -148,65 +163,16 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage('Finished generating tests!');
         chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Tests have been generated at ${outputFilePath}` }));
     }));
+
+    // Usage
+    const pythonHandler = new PythonProcessHandler(context.extensionPath, pythonInterpreter, apiKey, chatViewProvider);
     
-
-    context.subscriptions.push(vscode.commands.registerCommand('repogpt.explain', (functionBody:string, functionName: string, language: string) => {
-        // Write the function content to a temp file
-        const tempFilePath = path.join(os.tmpdir(), 'function_content.txt');
-        fs.writeFileSync(tempFilePath, functionBody); // or whatever content you need
-
-        const extensionDir = context.extensionPath;
-        const pythonScriptPath = path.join(extensionDir, 'python_scripts', 'explain_code.py');
-
-        // Construct the command
-        const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, tempFilePath]);
-
-        // Create new response html after clearing previous text
-        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear',language: language, value: "" }));
-        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Explaination of: ${functionName}`, inProgress: true }));
-
-        pythonProcess.stdout.on('data', (data) => {
-            console.log("Response data as read from terminal process", data.toString());
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), inProgress: true  }));
-        });
-
-        pythonProcess.stderr.on('data', (data) => {
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), isError: true, inProgress: true  }));
-        });
-
-        pythonProcess.on('close', (code) => {
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'appendDone',language: language, value: "" }));
-        });
+    context.subscriptions.push(vscode.commands.registerCommand('repogpt.explain', (functionBody: string, functionName: string, language: string) => {
+        pythonHandler.runPythonScript('explain_code.py', functionBody, functionName, language, 'Explanation of');
     }));
-
-    context.subscriptions.push(vscode.commands.registerCommand('repogpt.refactor', (functionBody:string, functionName: string, language: string) => {
-        // Write the function content to a temp file
-        const tempFilePath = path.join(os.tmpdir(), 'function_content.txt');
-        fs.writeFileSync(tempFilePath, functionBody); // or whatever content you need
-
-        const extensionDir = context.extensionPath;
-        const pythonScriptPath = path.join(extensionDir, 'python_scripts', 'refactor_code.py');
-
-        // Construct the command
-        const pythonProcess = spawn(pythonInterpreter, [pythonScriptPath, apiKey, language, tempFilePath]);
-
-        // Create new response html after clearing previous text
-        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear',language: language, value: "" }));
-        chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Refactor: ${functionName}`, inProgress: true }));
-
-        pythonProcess.stdout.on('data', (data) => {
-            console.log("Response data as read from terminal process", data.toString());
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), inProgress: true  }));
-        });
-
-        pythonProcess.stderr.on('data', (data) => {
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append',language: language, value: data.toString(), isError: true, inProgress: true }));
-        });
-
-        pythonProcess.on('close', (code) => {
-            // TODO: update to add a copy and paste button
-            chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'appendDone',language: language, value: "" }));
-        });
+    
+    context.subscriptions.push(vscode.commands.registerCommand('repogpt.refactor', (functionBody: string, functionName: string, language: string) => {
+        pythonHandler.runPythonScript('refactor_code.py', functionBody, functionName, language, 'Refactor');
     }));
 }
 
@@ -232,8 +198,15 @@ function createWebViewMessage(message: Partial<WebViewMessage>): WebViewMessage 
 }
 
 class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
+    private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
+    public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
 
-    constructor(private language: string, private context: vscode.ExtensionContext) {}
+    constructor(public language: string, private context: vscode.ExtensionContext) {}
+
+    // This function will be called whenever we want to refresh the codelens
+    refresh(): void {
+        this._onDidChangeCodeLenses.fire();
+    }
     
     provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
         const codeLenses: vscode.CodeLens[] = [];
@@ -254,27 +227,28 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
 
         type ParsedCodeLens = {
             name: string;
-            code: string;
+            // code: string;
             start_line: number;
             end_line: number;
         };
 
         try {
             const codelensArr: ParsedCodeLens[] = JSON.parse(codelensStr);
-            for (const code of codelensArr) {
+            for (const parsedCodeLens of codelensArr) {
                 // const line = document.lineAt(code.start_line);
-                const range = new vscode.Range(code.start_line, 0, code.end_line+1, 0);
+                const range = new vscode.Range(parsedCodeLens.start_line, 0, parsedCodeLens.end_line+1, 0);
+                const code = document.getText(range);
                 const explainCommand: vscode.Command = {
                     title: "Explain",
                     command: "repogpt.explain",
-                    arguments: [code.code , code.name, this.language]
+                    arguments: [code , parsedCodeLens.name, this.language]
                 };
                 codeLenses.push(new vscode.CodeLens(range, explainCommand));
 
                 const refactorCommand: vscode.Command = {
                     title: "Refactor",
                     command: "repogpt.refactor",
-                    arguments: [code.code , code.name, this.language]
+                    arguments: [code , parsedCodeLens.name, this.language]
                 };
                 codeLenses.push(new vscode.CodeLens(range, refactorCommand));
 
@@ -282,7 +256,7 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
                     const createTestCommand: vscode.Command = {
                         title: "Create Test",
                         command: "repogpt.createTest",
-                        arguments: [code.code , filepath, this.language]
+                        arguments: [code , filepath, this.language]
                     };
                     codeLenses.push(new vscode.CodeLens(range, createTestCommand));
                 }
@@ -291,6 +265,45 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
             console.error("Error parsing the string into JSON:", error);
         }
         return codeLenses;
+    }
+}
+
+class PythonProcessHandler {
+    private extensionDir: string;
+    private pythonInterpreter: string;
+    private apiKey: string;
+    private chatViewProvider: any;
+
+    constructor(extensionDir: string, pythonInterpreter: string, apiKey: string, chatViewProvider: any) {
+        this.extensionDir = extensionDir;
+        this.pythonInterpreter = pythonInterpreter;
+        this.apiKey = apiKey;
+        this.chatViewProvider = chatViewProvider;
+    }
+
+    runPythonScript(scriptName: string, functionBody: string, functionName: string, language: string, messageType: string) {
+        const tempFilePath = path.join(os.tmpdir(), 'function_content.txt');
+        fs.writeFileSync(tempFilePath, functionBody);
+
+        const pythonScriptPath = path.join(this.extensionDir, 'python_scripts', scriptName);
+
+        const pythonProcess = spawn(this.pythonInterpreter, [pythonScriptPath, this.apiKey, language, tempFilePath]);
+
+        this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear', language: language, value: "" }));
+        this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse', language: language, value: `${messageType}: ${functionName}`, inProgress: true }));
+
+        pythonProcess.stdout.on('data', (data) => {
+            console.log("Response data as read from terminal process", data.toString());
+            this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append', language: language, value: data.toString(), inProgress: true }));
+        });
+
+        pythonProcess.stderr.on('data', (data) => {
+            this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append', language: language, value: data.toString(), isError: true, inProgress: true }));
+        });
+
+        pythonProcess.on('close', (code) => {
+            this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'appendDone', language: language, value: "" }));
+        });
     }
 }
 
