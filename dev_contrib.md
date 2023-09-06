@@ -14,3 +14,11 @@ If you've followed the above steps and are still facing the issue, it could be h
 ## Helpful Resources
 - [Create Q&A chatbot](https://community.openai.com/t/context-generation-for-chat-based-q-a-bot/103121/18)
 - [Example chatbot vscode ext ui](https://github.com/barnesoir/chatgpt-vscode-plugin)
+
+### CSS Loading Spinners
+
+
+### Buttons
+- https://codepen.io/paulkoeckdev/pen/MWmvbJK
+- [Rainbow Border]()
+- [Gradient](https://tailwindcomponents.com/component/fancy-button-with-icon)

@@ -180,6 +180,7 @@ export function activate(context: vscode.ExtensionContext) {
 interface WebViewMessage {
     type: string;
     value: string;
+    stream: object;
     isError?: boolean;
     language?: string;
     inProgress?: boolean;  // The "?" makes it optional
@@ -189,6 +190,7 @@ function createWebViewMessage(message: Partial<WebViewMessage>): WebViewMessage 
     const defaults: WebViewMessage = {
         type: '',
         value: '',
+        stream: {text:'', newDataStartIndex:0, isError:false},
         language: 'javascript',
         isError: false,
         inProgress: false,
@@ -269,17 +271,10 @@ class FunctionRunCodeLensProvider implements vscode.CodeLensProvider {
 }
 
 class PythonProcessHandler {
-    private extensionDir: string;
-    private pythonInterpreter: string;
-    private apiKey: string;
-    private chatViewProvider: any;
+    private fullResponse: string = '';
+    private fullError: string = '';
 
-    constructor(extensionDir: string, pythonInterpreter: string, apiKey: string, chatViewProvider: any) {
-        this.extensionDir = extensionDir;
-        this.pythonInterpreter = pythonInterpreter;
-        this.apiKey = apiKey;
-        this.chatViewProvider = chatViewProvider;
-    }
+    constructor(private extensionDir: string, private pythonInterpreter: string, private apiKey: string, private chatViewProvider: any) {}
 
     runPythonScript(scriptName: string, functionBody: string, functionName: string, language: string, messageType: string) {
         const tempFilePath = path.join(os.tmpdir(), 'function_content.txt');
@@ -289,16 +284,24 @@ class PythonProcessHandler {
 
         const pythonProcess = spawn(this.pythonInterpreter, [pythonScriptPath, this.apiKey, language, tempFilePath]);
 
+        this.fullResponse = `## ${messageType}: ${functionName}\n`;
+
         this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'clear', language: language, value: "" }));
-        this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse', language: language, value: `${messageType}: ${functionName}`, inProgress: true }));
+        this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse', language: language, inProgress: true }));
+        
+        this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append', language: language, stream: {text:this.fullResponse, newDataStartIndex:0}, inProgress: true }));
 
         pythonProcess.stdout.on('data', (data) => {
             console.log("Response data as read from terminal process", data.toString());
-            this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append', language: language, value: data.toString(), inProgress: true }));
+            const newDataStartIndex = this.fullResponse.length;
+            this.fullResponse += data.toString();
+            this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append', language: language, stream: {text:this.fullResponse, newDataStartIndex:newDataStartIndex}, inProgress: true }));
         });
 
         pythonProcess.stderr.on('data', (data) => {
-            this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append', language: language, value: data.toString(), isError: true, inProgress: true }));
+            const newDataStartIndex = this.fullError.length;
+            this.fullError += data.toString();
+            this.chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'append', language: language, stream: {text:this.fullError, newDataStartIndex:newDataStartIndex, isError: true}, isError: true, inProgress: true }));
         });
 
         pythonProcess.on('close', (code) => {
