@@ -16,9 +16,16 @@ If you've followed the above steps and are still facing the issue, it could be h
 - [Example chatbot vscode ext ui](https://github.com/barnesoir/chatgpt-vscode-plugin)
 
 ### CSS Loading Spinners
-
+- [simple triangle](https://codepen.io/alphardex/pen/JjYVoqm)
+- [gradient circle](https://codepen.io/sam_garcia2/pen/abvVEae)
+- [two dots](https://codepen.io/meowwwls/pen/OJJPbGb)
+- [cute cat](https://codepen.io/jkantner/pen/jOONyoO)
+- [gradient circle](https://codepen.io/AdamDipinto/pen/eYOaGvY)
+- 
 
 ### Buttons
 - https://codepen.io/paulkoeckdev/pen/MWmvbJK
 - [Rainbow Border]()
 - [Gradient](https://tailwindcomponents.com/component/fancy-button-with-icon)
+- [Animated Gradient Border](https://www.hyperui.dev/blog/animated-border-gradient-with-tailwindcss)
+- [Tailwind animated gradient](https://codepen.io/rishi111/pen/JjLJEOp)
