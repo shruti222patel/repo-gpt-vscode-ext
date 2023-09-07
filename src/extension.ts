@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { spawn } from 'child_process';
 import ChatGptViewProvider from './chatgpt-view-provider';
-import { PythonProcessHandler } from './PythonProcessHandler';
 import { FunctionRunCodeLensProvider } from './FunctionRunCodeLensProvider';
 
 const fs = require('fs');
@@ -167,13 +166,10 @@ export function activate(context: vscode.ExtensionContext) {
         chatViewProvider.sendMessageToWebView(createWebViewMessage({ type: 'addResponse',language: language, value: `Tests have been generated at ${outputFilePath}` }));
     }));
 
-    // Usage
-    const pythonHandler = new PythonProcessHandler(context.extensionPath, pythonInterpreter, apiKey, chatViewProvider);
-
-
     // Explain
     context.subscriptions.push(vscode.commands.registerCommand('repogpt.explain', (functionBody: string, functionName: string, language: string) => {
         chatViewProvider.sendMessageToWebView(createWebViewMessage({ action: 'explain', type: 'clear', language: language, value: "" }));
+        const pythonHandler = chatViewProvider.createPythonHandler()
         pythonHandler.runPythonScript('explain_code.py', functionBody, functionName, language, 'Explanation of');
     }));
     
@@ -186,7 +182,7 @@ export function activate(context: vscode.ExtensionContext) {
             action: 'refactor',
             type: 'addResponse', 
             language: language, 
-            value: "List aspects you'd like refactored. If you want a generic refactoring, leave the input empty and press enter.", 
+            value: "Is there something specific you'd like to refactor?", 
             showInputBox: true,
             functionName: functionName,
             functionBody: functionBody,
