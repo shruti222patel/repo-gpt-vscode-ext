@@ -24,15 +24,15 @@ export function setupPythonEnv(context: vscode.ExtensionContext) {
 
         // Remove existing venv directory if it exists
         if (fs.existsSync(venvDir)) {
-            console.log(`Removing existing virtual environment at: ${venvDir}`);
+            // console.log(`Removing existing virtual environment at: ${venvDir}`);
             fs.rmSync(venvDir, { recursive: true });
         }
 
         // Create a new virtual environment
         try {
-            console.log(`Creating virtual environment at: ${venvDir}`);
+            // console.log(`Creating virtual environment at: ${venvDir}`);
             execSync(`python3 -m venv ${venvDir}`);
-            console.log(`Virtual environment created.`);
+            // console.log(`Virtual environment created.`);
         } catch (error) {
             console.error(`Error creating virtual environment: ${error}`);
             return null; // Return null to indicate failure
@@ -40,9 +40,9 @@ export function setupPythonEnv(context: vscode.ExtensionContext) {
 
         // Install the wheel package into the virtual environment
         try {
-            console.log(`Installing wheel package from: ${wheelPath}`);
+            // console.log(`Installing wheel package from: ${wheelPath}`);
             execSync(`${path.join(venvDir, 'bin', 'pip')} install ${wheelPath}`);
-            console.log(`Wheel package installed.`);
+            // console.log(`Wheel package installed.`);
         } catch (error) {
             console.error(`Error installing wheel package: ${error}`);
             return null; // Return null to indicate failure
@@ -54,9 +54,9 @@ export function setupPythonEnv(context: vscode.ExtensionContext) {
 
     // Check the existence of python interpreter after setup
     if (fs.existsSync(pythonInterpreter)) {
-        console.log(`Python interpreter exists at: ${pythonInterpreter}`);
+        // console.log(`Python interpreter exists at: ${pythonInterpreter}`);
     } else {
-        console.log(`Python interpreter NOT found at: ${pythonInterpreter}`);
+        // console.log(`Python interpreter NOT found at: ${pythonInterpreter}`);
         return null; // Return null to indicate failure
     }
 
@@ -98,7 +98,7 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(vscode.window.registerWebviewViewProvider("repogpt.view", chatViewProvider, {
         webviewOptions: { retainContextWhenHidden: true }
     }));
-    // console.log("registered webview view provider");
+    // // console.log("registered webview view provider");
 
 	// Register FunctionRunCodeLensProvider for all languages
 	const languages = ['typescript', 'php', 'python', 'sql'];
@@ -174,9 +174,14 @@ export function activate(context: vscode.ExtensionContext) {
     }));
     
     // Refactor
-    context.subscriptions.push(vscode.commands.registerCommand('repogpt.refactor', (functionBody: string, functionName: string, language: string) => {
+    context.subscriptions.push(vscode.commands.registerCommand('repogpt.refactor', (functionBody: string, 
+        functionName: string, 
+        language: string, 
+        startLine: number, 
+        endLine: number, 
+        filePath: string) => {
         chatViewProvider.sendMessageToWebView(createWebViewMessage({ 
-            action: 'refactor', type: 'clear', language: language, value: "" 
+            type: 'clear', language: language, value: "" 
         }));
         chatViewProvider.sendMessageToWebView(createWebViewMessage({ 
             action: 'refactor',
@@ -186,6 +191,9 @@ export function activate(context: vscode.ExtensionContext) {
             showInputBox: true,
             functionName: functionName,
             functionBody: functionBody,
+            functionStartLine: startLine,
+            functionEndLine: endLine,
+            functionFilePath: filePath,
         }));
     }));
 }
@@ -203,6 +211,9 @@ interface WebViewMessage {
     showInputBox: boolean;
     functionBody: string | null;
     functionName: string | null;
+    functionStartLine: number | null;
+    functionEndLine: number | null;
+    functionFilePath: string | null;
 }
 export function createWebViewMessage(message: Partial<WebViewMessage>): WebViewMessage {
     // Set default values
@@ -218,6 +229,9 @@ export function createWebViewMessage(message: Partial<WebViewMessage>): WebViewM
         showInputBox: false,
         functionBody: null,
         functionName: null,
+        functionStartLine: null,
+        functionEndLine: null,
+        functionFilePath: null,
     };
 
     return { ...defaults, ...message };
